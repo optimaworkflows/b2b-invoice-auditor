@@ -1,81 +1,61 @@
 import pandas as pd
 import os
+from datetime import datetime
 
-def run_supply_chain_audit(invoice_file, shipping_file, output_report_name="final_audit_report.csv"):
-    print("====================================================")
-    print("🚀 OPTIMA WORKFLOWS // INITIATING AUTONOMOUS AUDIT ENGINE")
-    print("====================================================\n")
+def execute_autonomous_pipeline(invoice_path, shipping_path, client_name="Client_Corp"):
+    print("🤖 INTEGRATED PIPELINE RUNNING...")
     
-    # Check if files exist before processing
-    if not os.path.exists(invoice_file) or not os.path.exists(shipping_file):
-        print("❌ ERROR: Source datasets missing. Ensure data streams are active.")
-        return False
+    # Check for missing file streams safely
+    if not os.path.exists(invoice_path) or not os.path.exists(shipping_path):
+        return {"status": "error", "message": "Source dataset arrays missing"}
 
-    print("📊 Loading transaction streams...")
-    # Load client data streams (Supports both CSV and Excel formats)
-    try:
-        invoices = pd.read_csv(invoice_file) if invoice_file.endswith('.csv') else pd.read_excel(invoice_file)
-        shipping = pd.read_csv(shipping_file) if shipping_file.endswith('.csv') else pd.read_excel(shipping_file)
-    except Exception as e:
-        print(f"❌ ERROR: Failed to read data matrices. Details: {e}")
-        return False
-
-    print("🧠 Standardizing incoming database structures...")
-    # Force column names to lowercase to neutralize varied ERP structural exports
+    # Dynamic Timestamp Allocation (Formated precisely as requested: Org_Date)
+    current_date = datetime.now().strftime("%Y_%m_%d")
+    clean_org_name = client_name.strip().replace(" ", "_")
+    base_filename = f"{clean_org_name}_{current_date}"
+    
+    # Load raw data sets seamlessly
+    invoices = pd.read_csv(invoice_path)
+    shipping = pd.read_csv(shipping_path)
+    
+    # Lowercase header translation mapping normalization
     invoices.columns = invoices.columns.str.strip().str.lower()
     shipping.columns = shipping.columns.str.strip().str.lower()
-
-    # Define strict schema key targets
-    required_invoice_keys = ['invoice_id', 'product_id', 'billed_qty', 'unit_price']
-    required_shipping_keys = ['product_id', 'delivered_qty']
-
-    # Validate that the uploaded documents contain the required transactional columns
-    if not all(k in invoices.columns for k in required_invoice_keys) or not all(k in shipping.columns for k in required_shipping_keys):
-        print("❌ ERROR: Data structure mismatch. Source file column headers do not match target matrix schema.")
-        print(f"Required Invoice Columns: {required_invoice_keys}")
-        print(f"Required Shipping Columns: {required_shipping_keys}")
-        return False
-
-    print("🔀 Executing multi-point relational data join...")
-    # Merge datasets matching exactly on unique Product SKU Identifiers
-    merged = pd.merge(invoices, shipping, on='product_id', how='inner')
-
-    print("🔢 Computing line-item validation math...")
-    # Isolate discrepancies where items billed exceed items physically delivered
-    merged['quantity_shortfall'] = merged['billed_qty'] - merged['delivered_qty']
     
-    # Calculate the exact financial capital loss leak
-    merged['capital_leakage_usd'] = merged['quantity_shortfall'] * merged['unit_price']
-
-    # Isolate only rows representing active financial leaks
-    leakage_records = merged[merged['quantity_shortfall'] > 0].copy()
-
-    if not leakage_records.empty:
-        total_leak = leakage_records['capital_leakage_usd'].sum()
-        total_incidents = len(leakage_records)
+    # Run immutable matrix join vector arithmetic
+    merged = pd.merge(invoices, shipping, on='product_id', how='inner')
+    merged['shortfall'] = merged['billed_qty'] - merged['delivered_qty']
+    merged['leakage_usd'] = merged['shortfall'] * merged['unit_price']
+    
+    # Isolate active financial leak incidents
+    active_leaks = merged[merged['shortfall'] > 0].copy()
+    
+    if not active_leaks.empty:
+        total_recovered = active_leaks['leakage_usd'].sum()
+        performance_fee_40 = total_recovered * 0.40
         
-        print("\n⚠️ ==================== AUDIT ALERT ====================")
-        print(f"🚨 CRITICAL LEAKAGE DETECTED ACROSS {total_incidents} LINE-ITEMS.")
-        print(f"💰 TOTAL UNCOVERED CAPITAL LOSS: ${total_leak:,.2f} USD")
-        print("========================================================\n")
+        # 1. GENERATE PRE-PAYMENT SUMMARY (Safely hidden layout to embed in payment email)
+        summary_data = {
+            "audited_records": len(merged),
+            "leak_incidents": len(active_leaks),
+            "capital_loss_uncovered": float(total_recovered),
+            "performance_split_40": float(performance_fee_40)
+        }
         
-        # Organize and format the final management report
-        report_columns = [
-            'invoice_id', 'product_id', 'billed_qty', 
-            'delivered_qty', 'quantity_shortfall', 'unit_price', 'capital_leakage_usd'
-        ]
-        final_report = leakage_records[report_columns].sort_values(by='capital_leakage_usd', ascending=False)
+        # 2. GENERATE FULL PROTECTED EXPORT FILE (Stored safely until invoice clears)
+        protected_report_name = f"{base_filename}_FULL_REPORT.csv"
+        report_columns = ['invoice_id', 'product_id', 'billed_qty', 'delivered_qty', 'shortfall', 'unit_price', 'leakage_usd']
+        active_leaks[report_columns].to_csv(protected_report_name, index=False)
         
-        # Export the document for presentation to client executives
-        final_report.to_csv(output_report_name, index=False)
-        print(f"💾 Discrepancy file safely generated: '{output_report_name}'")
-        return True
+        return {
+            "status": "leak_detected",
+            "summary": summary_data,
+            "report_file": protected_report_name
+        }
     else:
-        print("\n✅ ==================== RECONCILIATION SUCCESS ====================")
-        print("🎉 Audit complete. 100% data match verified. No financial leakage identified.")
-        print("====================================================================\n")
-        return True
+        return {"status": "reconciled", "message": "0% discrepancy verified across pipeline"}
 
 if __name__ == "__main__":
-    # Test execution parameters targeting local simulation datasets
-    run_supply_chain_audit('invoices.csv', 'shipping.csv')
+    # Test execution matching dynamic generation criteria
+    results = execute_autonomous_pipeline('invoices.csv', 'shipping.csv', client_name="Alpha Distribution")
+    print(results)
