@@ -1,61 +1,60 @@
 import pandas as pd
-import os
+import json
 from datetime import datetime
 
-def execute_autonomous_pipeline(invoice_path, shipping_path, client_name="Client_Corp"):
-    print("🤖 INTEGRATED PIPELINE RUNNING...")
+def run_sheet_automation_pipeline(raw_json_payload):
+    print("🤖 OPTIMA WORKFLOWS // INITIATING END-TO-END AUTONOMOUS SHEET ENGINE")
     
-    # Check for missing file streams safely
-    if not os.path.exists(invoice_path) or not os.path.exists(shipping_path):
-        return {"status": "error", "message": "Source dataset arrays missing"}
+    try:
+        data = json.loads(raw_json_payload)
+        client_org = data.get("organization_name", "Unknown_Corp").strip().replace(" ", "_")
+        raw_inv_rows = data.get("invoice_matrix", [])
+        raw_ship_rows = data.get("shipping_matrix", [])
+    except Exception as e:
+        print(f"❌ Error parsing payload: {e}")
+        return False
 
-    # Dynamic Timestamp Allocation (Formated precisely as requested: Org_Date)
-    current_date = datetime.now().strftime("%Y_%m_%d")
-    clean_org_name = client_name.strip().replace(" ", "_")
-    base_filename = f"{clean_org_name}_{current_date}"
+    # 1. Transform raw matrix lists back into structured tabular DataFrames safely
+    inv_df = pd.DataFrame(raw_inv_rows[1:], columns=raw_inv_rows[0])
+    ship_df = pd.DataFrame(raw_ship_rows[1:], columns=raw_ship_rows[0])
     
-    # Load raw data sets seamlessly
-    invoices = pd.read_csv(invoice_path)
-    shipping = pd.read_csv(shipping_path)
+    # 2. Normalize header structures
+    inv_df.columns = inv_df.columns.str.strip().str.lower()
+    ship_df.columns = ship_df.columns.str.strip().str.lower()
     
-    # Lowercase header translation mapping normalization
-    invoices.columns = invoices.columns.str.strip().str.lower()
-    shipping.columns = shipping.columns.str.strip().str.lower()
+    # Convert metric strings to floating numeric types for accurate math operations
+    inv_df['billed_qty'] = pd.to_numeric(inv_df['billed_qty'])
+    inv_df['unit_price'] = pd.to_numeric(inv_df['unit_price'])
+    ship_df['delivered_qty'] = pd.to_numeric(ship_df['delivered_qty'])
     
-    # Run immutable matrix join vector arithmetic
-    merged = pd.merge(invoices, shipping, on='product_id', how='inner')
+    # 3. Execute immutable vector arithmetic relational joins
+    merged = pd.merge(inv_df, ship_df, on='product_id', how='inner')
     merged['shortfall'] = merged['billed_qty'] - merged['delivered_qty']
-    merged['leakage_usd'] = merged['shortfall'] * merged['unit_price']
+    merged['capital_leak_usd'] = merged['shortfall'] * merged['unit_price']
     
-    # Isolate active financial leak incidents
     active_leaks = merged[merged['shortfall'] > 0].copy()
+    current_date = datetime.now().strftime("%Y_%m_%d")
     
     if not active_leaks.empty:
-        total_recovered = active_leaks['leakage_usd'].sum()
-        performance_fee_40 = total_recovered * 0.40
+        total_loss = active_leaks['capital_leak_usd'].sum()
+        fee_40 = total_loss * 0.40
         
-        # 1. GENERATE PRE-PAYMENT SUMMARY (Safely hidden layout to embed in payment email)
-        summary_data = {
-            "audited_records": len(merged),
+        # 4. Save dynamically named protected delivery sheets straight to cloud folder paths
+        filename = f"{client_org}_{current_date}_FULL_REPORT.csv"
+        report_cols = ['invoice_id', 'product_id', 'billed_qty', 'delivered_qty', 'shortfall', 'unit_price', 'capital_leak_usd']
+        active_leaks[report_cols].to_csv(filename, index=False)
+        
+        # 5. Structure execution summary strings for system logging
+        summary_log = {
+            "organization_name": client_org.replace("_", " "),
+            "execution_date": current_date,
             "leak_incidents": len(active_leaks),
-            "capital_loss_uncovered": float(total_recovered),
-            "performance_split_40": float(performance_fee_40)
+            "total_capital_loss_usd": float(total_loss),
+            "performance_fee_owed_40": float(fee_40),
+            "payment_status": "PAYWALL_LOCKED",
+            "secure_file_target": filename
         }
-        
-        # 2. GENERATE FULL PROTECTED EXPORT FILE (Stored safely until invoice clears)
-        protected_report_name = f"{base_filename}_FULL_REPORT.csv"
-        report_columns = ['invoice_id', 'product_id', 'billed_qty', 'delivered_qty', 'shortfall', 'unit_price', 'leakage_usd']
-        active_leaks[report_columns].to_csv(protected_report_name, index=False)
-        
-        return {
-            "status": "leak_detected",
-            "summary": summary_data,
-            "report_file": protected_report_name
-        }
+        print(f"✅ Run Successful. Isolated: ${total_loss:,.2f} USD")
+        return summary_log
     else:
-        return {"status": "reconciled", "message": "0% discrepancy verified across pipeline"}
-
-if __name__ == "__main__":
-    # Test execution matching dynamic generation criteria
-    results = execute_autonomous_pipeline('invoices.csv', 'shipping.csv', client_name="Alpha Distribution")
-    print(results)
+        return {"organization_name": client_org, "execution_date": current_date, "leak_incidents": 0, "total_capital_loss_usd": 0.0, "performance_fee_owed_40": 0.0, "payment_status": "CLEAN_RECONCILED"}
